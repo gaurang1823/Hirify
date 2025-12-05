@@ -118,9 +118,9 @@ git push origin feature/your-descriptive-branch-name
 ```
 
 6. Create a Pull Request (PR)
-Go to your fork on GitHub.
+Go to your fork on GitHub. 
 Click Compare & pull request (or Contribute → Open pull request).
-Set:
+Set: 
 Base repo: original team repo
 Base branch: main
 Head repo: your fork
