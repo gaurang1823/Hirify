@@ -1,6 +1,7 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from app.utils.supabase import supabase
 from app.middlewares.auth_middleware import token_required
+
 
 job_bp = Blueprint("job_bp", __name__)
 
@@ -80,34 +81,91 @@ def create_job(user):
    except Exception as e:
        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
+# # ---------------------------------------------
+# # 2. GET ALL JOBS (Paginated)
+# # ---------------------------------------------
+# @job_bp.route("/", methods=["GET"])
+# def get_all_jobs():
+#    try:
+#        page, page_size = _get_pagination_params()
+#        offset = (page - 1) * page_size
+#        to_index = offset + page_size - 1
+
+
+#        jobs_resp = supabase.table("jobs").select("*").order("created_at", desc=True).range(offset, to_index).execute()
+
+
+#        total_resp = supabase.table("jobs").select("id", count="exact").execute()
+#        total = total_resp.count or 0
+
+
+#        return jsonify({
+#            "page": page,
+#            "page_size": page_size,
+#            "total": total,
+#            "jobs": jobs_resp.data or []
+#        }), 200
+
+
+#    except Exception as e:
+#        return jsonify({"error": f"Failed to fetch jobs: {str(e)}"}), 500
+
+
+
+
 # ---------------------------------------------
-# 2. GET ALL JOBS (Paginated)
+# 2. GET ALL JOBS (Alternative : Paginated + Single-Field Search)
 # ---------------------------------------------
 @job_bp.route("/", methods=["GET"])
 def get_all_jobs():
-   try:
-       page, page_size = _get_pagination_params()
-       offset = (page - 1) * page_size
-       to_index = offset + page_size - 1
+    try:
+        page, page_size = _get_pagination_params()
+        offset = (page - 1) * page_size
+        to_index = offset + page_size - 1
+
+        search_query = request.args.get('q')
+        
+        # 1. Start with the base query
+        query = supabase.table("jobs").select("*", count="exact")
+
+        # 2. Apply search filter only to the 'title' field
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            
+            # Use the simple .ilike() for one column.
+            # This is less likely to break than .raw_filter() or .or_().
+            query = query.ilike("title", search_pattern)
+            
+            # NOTE: If ilike is not available, try eq():
+            # query = query.eq("title.ilike", search_pattern)
+
+        # 3. Execute the combined query (Data + Count)
+        response = (
+            query
+            .order("created_at", desc=True)
+            .range(offset, to_index)
+            .execute()
+        )
+        
+        total = response.count or 0
+        jobs_data = response.data or []
+        
+        return jsonify({
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "jobs": jobs_data
+        }), 200
+
+    except Exception as e:
+        print(f"Server Error during get_all_jobs: {e}") 
+        return jsonify({"error": f"Failed to fetch jobs due to a server error: {str(e)}"}), 500
 
 
-       jobs_resp = supabase.table("jobs").select("*").order("created_at", desc=True).range(offset, to_index).execute()
 
 
-       total_resp = supabase.table("jobs").select("id", count="exact").execute()
-       total = total_resp.count or 0
 
 
-       return jsonify({
-           "page": page,
-           "page_size": page_size,
-           "total": total,
-           "jobs": jobs_resp.data or []
-       }), 200
-
-
-   except Exception as e:
-       return jsonify({"error": f"Failed to fetch jobs: {str(e)}"}), 500
    
    # ---------------------------------------------
 # 3. GET A SINGLE JOB
